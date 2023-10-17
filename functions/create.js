@@ -42,16 +42,16 @@ export async function onRequestPost(context) {
   const formattedDate = new Intl.DateTimeFormat('zh-CN', options).format(timedata);
   const { url, slug } = await request.json();
 
-  if (!url) return Response.json({ message: 'Url不能为空!', code: 400 }, { headers: corsHeaders })
+  if (!url) return Response.json({ message: 'Url不能为空!', code: 400 }, { headers: corsHeaders, status: 400 })
 
   // url格式检查
   if (!/^https?:\/\/.{3,}/.test(url)) {
-    return Response.json({ message: 'Url格式错误!', code: 400 }, { headers: corsHeaders })
+    return Response.json({ message: 'Url格式错误!', code: 400 }, { headers: corsHeaders, status: 400 })
   }
 
   // 自定义slug长度检查 2<slug<10 是否不以文件后缀结尾
   if (slug && (slug.length < 1 || slug.length > 10 || /.+\.[a-zA-Z]+$/.test(slug))) {
-    return Response.json({ message: '别名格式不正确！', code: 400 }, { headers: corsHeaders })
+    return Response.json({ message: '别名格式不正确！', code: 400 }, { headers: corsHeaders, status: 400 })
   }
 
 
@@ -59,18 +59,20 @@ export async function onRequestPost(context) {
 
   try {
 
+    // 生成随机slug
+    const slug2 = slug ? slug : generateRandomString(4);
     // 如果自定义slug
     if (slug) {
       const existUrl = await env.DB.prepare(`SELECT url as existUrl FROM links where slug = '${slug}'`).first()
 
       // url & slug 是一样的。
       if (existUrl && existUrl.existUrl === url) {
-        return Response.json({ slug, link: `${origin}/${slug2}` }, { headers: corsHeaders })
+        return Response.json({ slug, link: `${origin}/${slug2}` }, { headers: corsHeaders, status: 200 })
       }
 
       // slug 已存在
       if (existUrl) {
-        return Response.json({ message: '别名已存在！', code: 400 }, { headers: corsHeaders })
+        return Response.json({ message: '别名已存在！', code: 400 }, { headers: corsHeaders, status: 400 })
       }
     }
 
@@ -79,32 +81,28 @@ export async function onRequestPost(context) {
 
     // url 存在且没有自定义 slug
     if (existSlug && !slug) {
-      return Response.json({ slug: existSlug.existSlug, link: `${origin}/${existSlug.existSlug}`, code: 200 }, { headers: corsHeaders })
+      return Response.json({ slug: existSlug.existSlug, link: `${origin}/${existSlug.existSlug}`, code: 200 }, { headers: corsHeaders, status: 200 })
     }
     const bodyUrl = new URL(url);
 
     if (bodyUrl.hostname === originurl.hostname) {
-      return Response.json({ message: '不能设置相同域名！', code: 400 }, { headers: corsHeaders })
+      return Response.json({ message: '不能设置相同域名！', code: 400 }, { headers: corsHeaders, status: 400 })
     }
-
-    // 生成随机slug
-    const slug2 = slug ? slug : generateRandomString(4);
-    // console.log('slug', slug2);
 
     const info = await env.DB.prepare(`INSERT INTO links (url, slug, ip, status, ua, create_time) 
         VALUES ('${url}', '${slug2}', '${clientIP}',1, '${userAgent}', '${formattedDate}')`).run()
 
-    return Response.json({ slug: slug2, link: `${origin}/${slug2}`, code: 200 }, { headers: corsHeaders })
+    return Response.json({ slug: slug2, link: `${origin}/${slug2}`, code: 200 }, { headers: corsHeaders, status: 200 })
   } catch (e) {
     // console.log(e);
-    return Response.json({ message: e.message, code: 500 }, { headers: corsHeaders })
+    return Response.json({ message: e.message, code: 500 }, { headers: corsHeaders, status: 500 })
   }
 
 }
 
 // 处理preflight请求
 export async function onRequestOptions() {
-  return new Response(null, { headers: corsHeaders })
+  return new Response(null, { headers: corsHeaders, status: 201 })
 }
 
 
